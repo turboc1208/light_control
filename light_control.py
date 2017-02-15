@@ -5,52 +5,37 @@ class light_control(appapi.AppDaemon):
 
   def initialize(self):
     self.log("lightcontrol")
-    self.lights={"light.den_fan_light":{"default":"40","dim":"5"},
-                 "light.outdoor_patio_light":{"default":"100","dim":"0"}}
-                 
-    self.rules={"light.den_fan_light":{"test":"media_player.dentv","rule":{"on":"dim","off":"default"}},
-                "light.outdoor_patio_light":{"test":"sun.sun","rule":{"above_horizon":"dim","below_horizon":"default"}}}
-                
-    self.action={"sun":{"above_horizon":"off","below_horizon":"on"},
-                 "switch":{"on":"on","off":"off"},
-                 "light":{"on":"on","off":"off"},
-                 "media_player":{"on":"on","off":"off"}}
-    return              
-    for entity in self.lights:
-      self.listen_state(self.lightStateChange,entity)
-      self.log("listen_state registered for {}".format(entity))
-  
-    for entity in self.rules:
-      self.listen_state(self.testStateChanged,self.rules[entity]["test"])
-      self.log("listen state registered for {}".format(self.rules[entity]["test"]))
-      
-  def lightStateChange(self,entity,attribute,old,new,kwargs):
-    self.log("entity={}, attribute={} old={} new={} get_state returns={}".format(entity,attribute,old,new,self.get_state(entity)))
-#    self.check_lights(entity,new)
-    
-  def check_lights(self,entity,new):
-    self.log("entity={} new={}".format(entity,new))    
-    if new=="on":
-      self.log("entity={}  rules[entity]={}".format(entity,self.rules[entity]["test"]))
-      runState=self.rules[entity]["rule"][self.get_state(self.rules[entity]["test"])]
-      
-      self.log("entity {} has turned on setting brightness to {}".format(entity,
-               self.lights[entity][runState]))
-      self.turn_on(entity,brightness=int(self.lights[entity][runState]))
-    else:
-      self.log("new={} so not doing anything".format(new))
+   
+#    self.light_states={"light.den_fan_light":{"type":"dimmer","on":"50","off":"0","dim":"10"},
+#                       "light.outdoor_patio_light":{"type":"dimmer","on":"100","off":"0"}}
 
-  def testStateChanged(self,entity,attribute,old,new,kwargs):
-    self.log("entity={} old={} new={} attribute={}".format(entity,old,new,attribute))
+                      #"device:{ light : { "type": dimmer, ondevicestate: ondimmerstate, offdevicestate: "0"},
+                      #        { light : { "type": switch, "on": onswitchstate, "off": "off"}}
+
+    self.control_dict={"light.den_fan_light":{"light.den_fan_light":{"type":"dimmer","on":"50","off":"0"}},
+                       "switch.breakfast_room_light":{"switch.breakfast_room_light":{"type":"switch","on":"on","off":"off"}},
+                       "media_player.dentv":{"light.den_fan_light":{"type":"dimmer","on":"10","off":"0"},
+                                             "switch.breakfast_room_light":{"type":"switch","on":"off","off":"off"}},
+                       "light.outdoor_patio_light":{"light.outdoor_patio_light":{"type":"dimmer","on":"100","off":"0"}} }
+
+    for control in self.control_dict:
+      self.listen_state(self.state_change,control,attributes="all")
+
+  def state_change(self,entity,attributes,old,new,kwargs):
     if not old==new:
-      for device in self.rules:
-        self.log("device={}".format(device))
-        if self.rules[device]["test"]==entity:
-          self.log("entity={} device={} state={}".format(entity,device,self.get_state(device)))
-          self.check_lights(device,self.get_state(device))
-
-  def log(self,msg,level="INFO"):
-    obj,fname, line, func, context, index=inspect.getouterframes(inspect.currentframe())[1]
-    super(light_control,self).log("{} - ({}) {}".format(func,str(line),msg),level)
-
-        
+      self.log("entity={}, old={}, new={}, attributes={}".format(entity,old,new,attributes))
+      if new=="on":
+        self.log("entity {} turned {}".format(entity,new))
+        for light in self.control_dict[entity]:
+          self.log("light {} is a {}. Turning light {}".format(light,self.control_dict[entity][light]["type"],self.control_dict[entity][light][new]))
+          light_type=self.control_dict[entity][light]["type"]
+          if light_type=="dimmer":
+            brightness=self.control_dict[entity][light][new]
+            if brightness==0:
+              self.turn_off(light)
+            else:
+              self.log("light={} brightness={}".format(light,self.control_dict[entity][light]["on"]))
+              self.turn_on(light,brightness=self.control_dict[entity][light]["on"])
+          else:
+            self.log("do something witha switch")
+            
