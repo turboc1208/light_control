@@ -14,7 +14,8 @@ class light_control(appapi.AppDaemon):
                        "switch.breakfast_room_light":{"switch.breakfast_room_light":{"type":"switch","on":"on","off":"off"}},
                        "media_player.dentv":{"light.den_fan_light":{"type":"dimmer","on":"10","off":"last","last_brightness":""},
                                              "switch.breakfast_room_light":{"type":"switch","on":"off","off":"on"}},
-                       "light.outdoor_patio_light":{"light.outdoor_patio_light":{"type":"dimmer","on":"100","off":"0","last_brightness":""}} }
+                       "light.outdoor_patio_light":{"light.outdoor_patio_light":{"type":"dimmer","on":"100","off":"0","last_brightness":""}},
+                       "light.master_light_switch":{"light.master_light_switch":{"type":"dimmer","on":"100","off":"0","last_brightness":""}} }
 
     for control in self.control_dict:
       self.listen_state(self.state_change,control,attributes="all")
