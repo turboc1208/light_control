@@ -1,7 +1,7 @@
-import appdaemon.appapi as appapi
+import my_appapi as appapi
 import inspect
              
-class light_control(appapi.AppDaemon):
+class light_control(appapi.my_appapi):
 
   def initialize(self):
     self.log("lightcontrol")
@@ -62,12 +62,3 @@ class light_control(appapi.AppDaemon):
           self.log("light is a currently off switch")
           self.turn_off(light)
 
-  def log(self,msg,level="INFO"):
-    try:
-      obj,fname, line, func, context, index=inspect.getouterframes(inspect.currentframe())[1]
-    except IndexError:
-      self.log("Unknown - (xxx) {}".format(msg),level)
-    
-    super(light_control,self).log("{} - ({}) {}".format(func,str(line),msg),level)
-
-      
