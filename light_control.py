@@ -6,7 +6,13 @@ class light_control(appapi.my_appapi):
   def initialize(self):
     self.log("lightcontrol")
     self.dim_rate=50   
-    self.states={"on":["on","open","23","playing"],"off":["off","closed","22",0]}
+    self.states={"on":["on","open","23","playing","home","house"],
+                 "off":["off","closed","22",0,
+                        "not_home","academy","bayer","corporate",                # handle non-home zones
+                        "covington_pike","frayser","macon_rd","mba",             # non-home zones
+                        "quince","southhaven","spottswood","uom",                # non-home zones
+                        "winchester",                                            # non-home zones
+                        "None"]}
     # Control_dict structure
     #"device:{ light : { "type": dimmer, ondevicestate: ondimmerstate, offdevicestate: "0"},
     #        { light : { "type": switch, "on": onswitchstate, "off": "off"}}
@@ -15,18 +21,46 @@ class light_control(appapi.my_appapi):
                        "light.den_fan":{"light.den_fan":{"type":"dimmer","on":"50","off":0,"last_brightness":""}},
                        "switch.breakfast_room_light":{"switch.breakfast_room_light":{"type":"switch","on":"on","off":"off"}},
                        "light.office_lights":{"light.office_lights":{"type":"dimmer","on":"50","off":0,"last_brightness":""}},
-                       "sensor.ge_32563_hinge_pin_smart_door_sensor_access_control_4_9":{"light.office_lights":{"type":"dimmer","on":"50","off":0,"last_brightness":""}},
-                       "media_player.dentv":{"light.den_fan_light":{"type":"dimmer","on":"10","off":"last","last_brightness":""},
+                       "light.office_fan":{"light.office_fan":{"type":"dimmer","on":"128","off":0,"last_brightness":""}},
+                       "sensor.ge_32563_hinge_pin_smart_door_sensor_access_control_4_9":{"light.office_lights":{"type":"switch","on":"50","off":0,"last_brightness":""}},
+                       "media_player.dentv":{"light.den_fan_light":{"type":"light","on":"10","off":"last","last_brightness":""},
                                              "switch.breakfast_room_light":{"type":"switch","on":"off","off":"off"}},
                        "media_player.office_directv":{"light.office_lights":{"type":"dimmer","on":"10","off":"last","last_brigthness":""}},
                        "switch.downstairs_hallway_light":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"off"}},
                        "light.master_light_switch":{"light.master_light_switch":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
+                       "light.shed_lights":{"light.shed_lights":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
+                       "light.shed_flood_light":{"light.shed_flood_light":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
+                       "device_tracker.scox0129_sc0129":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"},
+                                                         "light.sam_light_switch":{"type":"dimmer","on":"ignore","off":0,"last_brightness":""},
+                                                         "light.sam_fan_switch":{"type":"dimmer","on":"ignore","off":0,"last_brightness":""},
+                                                         "switch.sam_toilet_fan":{"type":"switch","on":"ignore","off":0},
+                                                         "switch.sam_toilet_light":{"type":"switch","on":"ignore","off":0},
+                                                         "switch.sam_vanity_switch":{"type":"switch","on":"ignore","off":0}},
+                       "light.sam_light_switch":{"light.sam_light_switch":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
+                       "light.sam_fan_switch":{"light.sam_fan_switch":{"type":"dimmer","on":"128","off":0,"last_brightness":""}},
+                       "device_tracker.ccox0605_ccox0605":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"},
+                                                           "light.charlie_light_switch":{"type":"dimmer","on":"ignore","off":0,"last_brightness":""},
+                                                           "light.charlie_fan_switch":{"type":"dimmer","on":"255","off":126,"last_brightness":""}},
+                       "light.charlie_light_switch":{"light.charlie_light_switch":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
+                       "light.charlie_fan_switch":{"light.charlie_fan_switch":{"type":"dimmer","on":"128","off":0,"last_brightness":""}},
+                       "group.app_light_control_master":{"light.master_light_switch":{"type":"dimmer","on":"ignore","off":0,"last_brightness":""},
+                                                         "light.master_fan":{"type":"dimmer","on":"ignore","off":0,"last_brightness":""},
+                                                         "light.master_floor_light":{"type":"dimmer","on":"ignore","off":0,"last_brightness":""},
+                                                         "switch.master_toilet_fan":{"type":"switch","on":"ignore","off":0},
+                                                         "switch.master_toilet_light":{"type":"switch","on":"ignore","off":0}},
+                       "device_tracker.scox1209_scox1209":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
+                       "device_tracker.turboc1208_cc1208":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
+                       "light.master_floor_light":{"light.master_floor_light":{"type":"dimmer","on":"128","off":0,"last_brightness":""}},
                        "binary_sensor.front_door_button_pressed":{"switch.front_door_light":{"type":"switch","on":"on","off":"delay"}} }
+
+    #self.log("group.app_light_control_master = {}".format(self.get_state("group.app_light_control_master")))
+
+    self.direct_light_control=["switch","light","sensor"]
 
     for trigger in self.control_dict:
       self.listen_state(self.state_change,trigger,attributes="all")
 
-    self.check_current_state()
+    # self.check_current_state()
 
   #########
   # Check_current_state - Initialization only
@@ -113,8 +147,10 @@ class light_control(appapi.my_appapi):
     elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="delay":
       self.log("turning off {} in 30 seconds".format(light))
       self.turn_off_in(light,900)
+    elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="ignore":
+      self.log("do not do anything, ignore")
     elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="last":       # new desired state is on or last
-      self.log("last")
+      self.log("last - current state={}".format(self.get_state(light,attribute="state")))
       if self.get_state(light,attribute="state") in self.states["on"]:                             # if current state is on
         dev, name=self.split_entity(light)
         if dev=="light"                                        :                                     # is this a light (lights are dimable and have a last_brightness attribute)
@@ -149,7 +185,8 @@ class light_control(appapi.my_appapi):
           self.log("{} is a currently on switch".format(light))
           self.turn_on(light)                                                                       # light is a switch so just turn it on
       else:                                                                                       # light is off but desired state is on
-        if trigger==light:                                                                        # is the trigger controlling itself
+        dev,name=self.split_entity(trigger)
+        if dev in self.direct_light_control:                                                         # is the trigger controlling itself like a wall switch, or door hinge controlling a light
           if self.control_dict[trigger][light]["type"]=="dimmer":                                      # if light is a dimmer
             self.log("{} is a currently off Dimmer".format(light))                                      
             self.turn_on(light,brightness=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)])  # light is currently off so just turn it on at designated brightness
