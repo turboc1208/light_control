@@ -6,13 +6,13 @@ class light_control(appapi.my_appapi):
   def initialize(self):
     self.log("lightcontrol")
     self.dim_rate=50   
-    self.states={"on":["on","open","23","playing","home","house"],
+    self.states={"on":["on","open","23","playing","Home","House","above_horizon"],
                  "off":["off","closed","22",0,
-                        "not_home","academy","bayer","corporate",                # handle non-home zones
-                        "covington_pike","frayser","macon_rd","mba",             # non-home zones
-                        "quince","southhaven","spottswood","uom",                # non-home zones
-                        "winchester",                                            # non-home zones
-                        "None"]}
+                        "not_home","Academy","Bayer","Corporate",                # handle non-home zones
+                        "covington pike","frayser","Macon Rd","MBA",             # non-home zones
+                        "Quince","southhaven","Spottswood","UOM",                # non-home zones
+                        "Winchester",                                            # non-home zones
+                        "None","below_horizon"]}
     # Control_dict structure
     #"device:{ light : { "type": dimmer, ondevicestate: ondimmerstate, offdevicestate: "0"},
     #        { light : { "type": switch, "on": onswitchstate, "off": "off"}}
@@ -27,6 +27,8 @@ class light_control(appapi.my_appapi):
                                              "switch.breakfast_room_light":{"type":"switch","on":"off","off":"off"}},
                        "media_player.office_directv":{"light.office_lights":{"type":"dimmer","on":"10","off":"last","last_brigthness":""}},
                        "switch.downstairs_hallway_light":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"off"}},
+                       "switch.carriage_lights":{"switch.carriage_lights":{"type":"switch","on":"on","off":"off"}},
+                       "sun":{"switch.carriage_lights":{"type":"switch","on":"off","off":"on"}},
                        "light.master_light_switch":{"light.master_light_switch":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
                        "light.shed_lights":{"light.shed_lights":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
                        "light.shed_flood_light":{"light.shed_flood_light":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
@@ -51,68 +53,29 @@ class light_control(appapi.my_appapi):
                        "device_tracker.scox1209_scox1209":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
                        "device_tracker.turboc1208_cc1208":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
                        "light.master_floor_light":{"light.master_floor_light":{"type":"dimmer","on":"128","off":0,"last_brightness":""}},
-                       "binary_sensor.front_door_button_pressed":{"switch.front_door_light":{"type":"switch","on":"on","off":"delay"}} }
+                       "time":{"19:00:00":{"light.front_porch_lights":"on",
+                                           "switch.back_patio_lights":"on"},
+                               "23:30:00":{"light.front_porch_lights":"off"}},
+                       "binary_sensor.front_door_button_pressed":{"switch.front_door_light":{"type":"switch","on":"on","off":"delay,900"}} }
 
     #self.log("group.app_light_control_master = {}".format(self.get_state("group.app_light_control_master")))
 
-    self.direct_light_control=["switch","light","sensor"]
+    self.direct_light_control=["switch","light","sensor","binary_sensor"]
 
     for trigger in self.control_dict:
-      self.listen_state(self.state_change,trigger,attributes="all")
+      if trigger=="time":
+        for runtime in self.control_dict[trigger]:
+          for light_entity in self.control_dict[trigger][runtime]:
+            self.log("scheduling {} to turn {} at {}".format(light_entity,self.control_dict[trigger][runtime][light_entity],runtime))
+            self.run_daily(self.timer_handler,self.parse_time(runtime),entity=light_entity,state=self.control_dict[trigger][runtime][light_entity])
+      else:
+        self.listen_state(self.state_change,trigger,attributes="state")
 
-    # self.check_current_state()
-
-  #########
-  # Check_current_state - Initialization only
-  #   Update current state of lights based on current state of triggers without waiting for trigger to be called
-  #########
-  def check_current_state(self):
-    newstate={}
-    for trigger in self.control_dict:
-      dev,entity=self.split_entity(trigger)
-      if dev in ["light","switch"]:                                              #if triggering device is a light or switch
-        dev_state=self.get_state(trigger)                                        #get state of trigger
-        for sublight in self.control_dict[trigger]:                              # for each light associated with trigger
-          newstate[sublight]=self.control_dict[trigger][sublight][dev_state]       # add it's desired state to the list
-
-    self.log("after first pass newstate={}".format(newstate))
-
-    for trigger in self.control_dict:                                            # loop through again
-      dev,entity=self.split_entity(trigger)
-      if dev not in ["light","switch"]:                                          # if trigger is not a light or a switch like a TV or doorbell
-        dev_state=self.get_state(trigger)
-        for sublight in self.control_dict[trigger]:                                 # loop through sublights
-          newstate[sublight]=self.control_dict[trigger][sublight][self.convert_dev_state(dev_state)]   # determine new state of the sublight not sure why we did this in two loops.
-    self.log("after second pass newstate={}".format(newstate))
-
-    for light in newstate:                                         # cycle through the lights setting states
-      if newstate[light] in self.states["on"]:                     # if the new state is on 
-        self.log("Turning {} on".format(light))
-        self.turn_on(light)                                           # turn on the light
-      elif newstate[light] in self.states["off"]:                  # else if it's off
-        self.log("Turning {} off".format(light))
-        self.turn_off(light)                                          # turn off the light
-      elif newstate[light]=="dim":                                 # else if it's dim
-        self.log("Dimming {}".format(light))
-        self.run_in(self.dim_light,600,light=light)                   # check again in 10 minutes to start diming again if spot is done
-      elif newstate[light]=="last":                                # else if it's last
-        self.log("dont know last value for {} leaving it alone".format(light))   # since this is in initialize, just leave last alone because we don't know what it is now.
-        continue
-      else:                                                        # else lets just try setting the light level to it in hopes it's a number.
-        try:
-          dimamt=int(newstate[light])
-        except ValueError:                                         # it's not a number.
-          self.log("invalid new light state {}".format(newstate[light]))
-          continue
-        except:
-          raise
-                                       
-        if dimamt==0:                                              # it's a number so if the dim level is 0 then turn off the light
-          self.log("turning off dimmer {}".format(light))
-          self.turn_off(light)
-        else:                                                      # else just dim by dimat value.
-          self.log("setting {} to {} brightness".format(light,dimamt))
-          self.turn_on(light,brightness=dimamt)
+  def timer_handler(self,kwargs):
+    if kwargs["state"]=="on":
+      self.turn_on(kwargs["light_entity"])
+    else:
+      self.turn_off(kwargs["light_entity"])
 
   #############
   #
@@ -132,8 +95,8 @@ class light_control(appapi.my_appapi):
   # state_changed - handler for state changes
   ########
   def state_change(self,trigger,attributes,old,new,kwargs):
-    self.log("old = {} new= {}".format(old,new))
-    if not ((old==new) or (new=="unavailable")):     # control entity changed state
+    self.log("old = {}-{} new= {}-{}".format(old,self.convert_dev_state(old),new,self.convert_dev_state(new)))
+    if not ((self.convert_dev_state(old)==self.convert_dev_state(new)) or (new=="unavailable")):     # control entity changed state
       for light in self.control_dict[trigger]:            # loop through lights controled by control entity
         self.set_light_state(trigger,light,new)
 
@@ -144,9 +107,10 @@ class light_control(appapi.my_appapi):
       self.log("New desired state is {}".format(self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]))
       self.log("turn off the light regardless of anything else")
       self.turn_off(light)
-    elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="delay":
-      self.log("turning off {} in 30 seconds".format(light))
-      self.turn_off_in(light,900)
+    elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)].find("delay")>=0:
+      seconds=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)][self.control_dict[trigger][light][self.convert_dev_state(trigger_state)].find(",")+1:]
+      self.log("turning off {} in {} seconds".format(light,seconds))
+      self.turn_off_in(light,seconds)
     elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="ignore":
       self.log("do not do anything, ignore")
     elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="last":       # new desired state is on or last
@@ -186,6 +150,7 @@ class light_control(appapi.my_appapi):
           self.turn_on(light)                                                                       # light is a switch so just turn it on
       else:                                                                                       # light is off but desired state is on
         dev,name=self.split_entity(trigger)
+        self.log("device type={}".format(dev))
         if dev in self.direct_light_control:                                                         # is the trigger controlling itself like a wall switch, or door hinge controlling a light
           if self.control_dict[trigger][light]["type"]=="dimmer":                                      # if light is a dimmer
             self.log("{} is a currently off Dimmer".format(light))                                      
