@@ -6,7 +6,7 @@ class light_control(appapi.my_appapi):
   def initialize(self):
     self.log("lightcontrol")
     self.dim_rate=50   
-    self.states={"on":["on","open","23","playing","Home","House","above_horizon"],
+    self.states={"on":["on","open","23","playing","Home","house","above_horizon"],
                  "off":["off","closed","22",0,
                         "not_home","Academy","Bayer","Corporate",                # handle non-home zones
                         "covington pike","frayser","Macon Rd","MBA",             # non-home zones
@@ -23,12 +23,12 @@ class light_control(appapi.my_appapi):
                        "light.office_lights":{"light.office_lights":{"type":"dimmer","on":"50","off":0,"last_brightness":""}},
                        "light.office_fan":{"light.office_fan":{"type":"dimmer","on":"128","off":0,"last_brightness":""}},
                        "sensor.ge_32563_hinge_pin_smart_door_sensor_access_control_4_9":{"light.office_lights":{"type":"switch","on":"50","off":0,"last_brightness":""}},
-                       "media_player.dentv":{"light.den_fan_light":{"type":"light","on":"10","off":"last","last_brightness":""},
-                                             "switch.breakfast_room_light":{"type":"switch","on":"off","off":"off"}},
+                       "media_player.dentv":{"light.den_fan_light":{"type":"dimmer","on":"10","off":"last","last_brightness":""},
+                                             "switch.breakfast_room_light":{"type":"switch","on":"off","off":"on"}},
                        "media_player.office_directv":{"light.office_lights":{"type":"dimmer","on":"10","off":"last","last_brigthness":""}},
                        "switch.downstairs_hallway_light":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"off"}},
                        "switch.carriage_lights":{"switch.carriage_lights":{"type":"switch","on":"on","off":"off"}},
-                       "sun":{"switch.carriage_lights":{"type":"switch","on":"off","off":"on"}},
+                       "sun.sun":{"switch.carriage_lights":{"type":"switch","on":"off","off":"on"}},
                        "light.master_light_switch":{"light.master_light_switch":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
                        "light.shed_lights":{"light.shed_lights":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
                        "light.shed_flood_light":{"light.shed_flood_light":{"type":"dimmer","on":"255","off":0,"last_brightness":""}},
@@ -53,10 +53,16 @@ class light_control(appapi.my_appapi):
                        "device_tracker.scox1209_scox1209":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
                        "device_tracker.turboc1208_cc1208":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
                        "light.master_floor_light":{"light.master_floor_light":{"type":"dimmer","on":"128","off":0,"last_brightness":""}},
+                       "switch.master_toilet_light":{"switch.master_toilet_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
+                       "switch.half_bath_light":{"switch.half_bath_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
+                       "switch.sam_toilet_light":{"switch.sam_toilet_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
+                       "input_boolean.spot":{"switch.kitchen_overhead_light":{"type":"switch","on":"on","off":"off"},
+                                             "light.stairway_light_switch":{"type":"dimmer","on":255,"off":0,"last_brightness":""},
+                                             "switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"off"}},
                        "time":{"19:00:00":{"light.front_porch_lights":"on",
                                            "switch.back_patio_lights":"on"},
                                "23:30:00":{"light.front_porch_lights":"off"}},
-                       "binary_sensor.front_door_button_pressed":{"switch.front_door_light":{"type":"switch","on":"on","off":"delay,900"}} }
+                       "binary_sensor.front_door_button_pressed":{"switch.front_door_light":{"type":"switch","on":"on","off":"delay,off,900"}} }
 
     #self.log("group.app_light_control_master = {}".format(self.get_state("group.app_light_control_master")))
 
@@ -72,6 +78,14 @@ class light_control(appapi.my_appapi):
         self.listen_state(self.state_change,trigger,attributes="state")
 
   def timer_handler(self,kwargs):
+    self.log("in timer_handler")
+    for a in kwargs:
+      self.log("{} = {}".format(a,kwargs[a]))
+    if "trigger" in kwargs:
+      if not kwargs["trigger_state"]==self.get_state(kwargs["trigger"],attribute="state"):
+        self.log("trigger {} state changed not turning {} {}".format(kwargs["trigger"],kwargs["light_entity"],kwargs["state"]))
+        return
+
     if kwargs["state"]=="on":
       self.turn_on(kwargs["light_entity"])
     else:
@@ -95,7 +109,7 @@ class light_control(appapi.my_appapi):
   # state_changed - handler for state changes
   ########
   def state_change(self,trigger,attributes,old,new,kwargs):
-    self.log("old = {}-{} new= {}-{}".format(old,self.convert_dev_state(old),new,self.convert_dev_state(new)))
+    self.log("trigger={} old = {}-{} new= {}-{}".format(trigger,old,self.convert_dev_state(old),new,self.convert_dev_state(new)))
     if not ((self.convert_dev_state(old)==self.convert_dev_state(new)) or (new=="unavailable")):     # control entity changed state
       for light in self.control_dict[trigger]:            # loop through lights controled by control entity
         self.set_light_state(trigger,light,new)
@@ -108,9 +122,21 @@ class light_control(appapi.my_appapi):
       self.log("turn off the light regardless of anything else")
       self.turn_off(light)
     elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)].find("delay")>=0:
-      seconds=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)][self.control_dict[trigger][light][self.convert_dev_state(trigger_state)].find(",")+1:]
-      self.log("turning off {} in {} seconds".format(light,seconds))
-      self.turn_off_in(light,seconds)
+      ctlstr=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]
+      tmpstr=ctlstr[ctlstr.find(",")+1:]
+      onoff=tmpstr[0:tmpstr.find(",")]
+      seconds=tmpstr[tmpstr.find(",")+1:]
+      self.log("turning {} in {} seconds".format(onoff,seconds))
+      if onoff=="off":
+        self.log("turning off {} in {} seconds onoff={} trigger={}  trigger_state={}".format(light,seconds,onoff,trigger,trigger_state))
+#        self.run_in(self.timer_handler,seconds,entity=light,state=onoff,trigger=trigger,trigger_state=trigger_state)
+        self.turn_off_in(light,seconds)
+      elif onoff=="on":
+        self.log("turning on {} in {} seconds onoff={} trigger={}  trigger_state={}".format(light,seconds,onoff,trigger,trigger_state))
+#        self.run_in(self.timer_handler,seconds,entity=light,state=onoff,trigger=trigger,trigger_state=trigger_state)
+        self.turn_on_in(light,seconds)
+      else:
+        self.log("invalid value for on/off - {}".format(onoff))
     elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="ignore":
       self.log("do not do anything, ignore")
     elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="last":       # new desired state is on or last
