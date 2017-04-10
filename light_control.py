@@ -55,7 +55,7 @@ class light_control(appapi.my_appapi):
                        "device_tracker.turboc1208_cc1208":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
                        "light.master_floor_light":{"light.master_floor_light":{"type":"dimmer","on":"128","off":"0","last_brightness":""}},
                        "switch.master_toilet_light":{"switch.master_toilet_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
-                       "switch.half_bath_light":{"switch.half_bath_fan":{"type":"switch","on":"delay,on,30","off":"delay,off,30"}},
+                       "switch.half_bath_light":{"switch.half_bath_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
                        "switch.sam_toilet_light":{"switch.sam_toilet_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
                        "input_boolean.spot":{"switch.kitchen_overhead_light":{"type":"switch","on":"on","off":"off"},
                                              "light.stairway_light_switch":{"type":"dimmer","on":"255","off":"0","last_brightness":""},
