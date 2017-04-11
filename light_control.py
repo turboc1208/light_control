@@ -1,3 +1,52 @@
+##############
+#  Light_Control
+#  Author: Chip Cox
+#  
+#  Version    Date        Name      description
+#  0.1.0      10APR2017   Chip Cox  Initial Development Completed
+#
+#  Light Control is goverened by a dictionary structure shown below
+#
+# Control_dict structure
+#"trigger":{ "target" : { "On_Trigger_state": "target_state", "Off_Trigger_State": "target_state"},
+#          { "target" : { "on"              : "on"          , "off"              : "off"}
+#"time":{"19:00:00":{"light.front_porch_lights":{"state":"on","dow":"m,t,w,th,f"},
+#                    "switch.back_porch_light":{"state":"on","dow":"all"}},
+#        "23:30:00":{"switch.back__porch_light":{"state":"off","dow":"all"}}}}
+#
+# Triggers represent the action that causes an action to be performed against a target
+# Trigger_State - the new state the trigger transitioned to that is causing the event.  A trigger state is either on or off, 
+# On_Trigger_state - typically a litereal "on"
+# Off_Trigger_state - typically a ligerall "off"
+# target_state - the new state target should be moved to depending on the on/off_trigger_state
+# Target represents the light or switch that is turned on/off depending on the new trigger_state
+#
+# For example, if we want to turn on the entry_way_light when the door_bell is pushed we might have the following.
+# trigger = sensor.door_bell
+# target = switch.entry_way_light
+# in response to the ON trigger state we set the target state to ON
+# 
+# "sensor.door_bell":{"switch.entry_way_light":{"on":"on", "off":"ignore"}}
+# 
+# if we want an action performed on more than one target, just include a second target dictionary under the trigger dictionary.
+#
+# "sensor.door_bell":{"switch.entry_way_light":{"on":"on", "off":"ignore"},
+#                    {"light.front_porch_light":{"on":"on", "off":"ignore"}}
+#
+# There are seceral different target_actions that can be performed.
+# on - turn the target on
+# off - turn the target off
+# number - set the target light (dimmer) to number brightness (0 - 255)
+# delay - "delay,state,seconds" - "delay, on, 300" delays turning on the target for 300 seconds.
+# ignore - do nothing - for example, since a doorbell is a momentart contact device, it turns off as soon as it turns on,
+#                       so you may want to do something on the "on" trigger, but ignore the "off" trigger and just leave the light on.
+# 
+# There are a couple of different types of triggers.
+# object triggers where a doorbell or opening a door or turning on a light causes an action in another device.
+# sun based triggers are really object triggers where sun.sun is the object.  above_horizon is considered on the sun is on, 
+#                                                                              below_horizon is considered off the sun is off
+# time triggers execute at a specific time every day.  when the trigger activates it checks the dow to see if it should run that day or not.
+##############
 import my_appapi as appapi
 import inspect
              
@@ -8,62 +57,62 @@ class light_control(appapi.my_appapi):
     self.dim_rate=50   
     self.dow_map=["M","T","W","TH","F","S","SU"]
     self.states={"on":["on","open","23","playing","Home","house","above_horizon"],
-                 "off":["off","closed","22",0,
+                 "off":["off","closed","22",0,"0",
                         "not_home","Academy","Bayer","Corporate",                # handle non-home zones
                         "covington pike","frayser","Macon Rd","MBA",             # non-home zones
                         "Quince","southhaven","Spottswood","UOM",                # non-home zones
                         "Winchester",                                            # non-home zones
                         "None","below_horizon"]}
     # Control_dict structure
-    #"device:{ light : { "type": dimmer, ondevicestate: ondimmerstate, offdevicestate: "0"},
-    #        { light : { "type": switch, "on": onswitchstate, "off": "off"}}
+    #"trigger":{ "target" : { "On_Trigger_state": "target_state", "Off_Trigger_State": "target_state"},
+    #          { "target" : { "on"              : "on"          , "off"              : "off"}}
 
-    self.control_dict={"light.den_fan_light":{"light.den_fan_light":{"type":"dimmer","on":"50","off":"0","last_brightness":""}},
-                       "light.den_fan":{"light.den_fan":{"type":"dimmer","on":"50","off":"0","last_brightness":""}},
-                       "switch.breakfast_room_light":{"switch.breakfast_room_light":{"type":"switch","on":"on","off":"off"}},
-                       "light.office_lights":{"light.office_lights":{"type":"dimmer","on":"50","off":"0","last_brightness":""}},
-                       "light.office_fan":{"light.office_fan":{"type":"dimmer","on":"128","off":"0","last_brightness":""}},
-                       "sensor.ge_32563_hinge_pin_smart_door_sensor_access_control_4_9":{"light.office_lights":{"type":"switch","on":"50","off":"0","last_brightness":""}},
-                       "media_player.dentv":{"light.den_fan_light":{"type":"dimmer","on":"10","off":"last","last_brightness":""},
-                                             "switch.breakfast_room_light":{"type":"switch","on":"off","off":"on"}},
-                       "media_player.office_directv":{"light.office_lights":{"type":"dimmer","on":"10","off":"last","last_brigthness":""}},
-                       "switch.downstairs_hallway_light":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"off"}},
-                       "switch.carriage_lights":{"switch.carriage_lights":{"type":"switch","on":"on","off":"off"}},
-                       "sun.sun":{"switch.carriage_lights":{"type":"switch","on":"off","off":"on"}},
-                       "light.master_light_switch":{"light.master_light_switch":{"type":"dimmer","on":"255","off":"0","last_brightness":""}},
-                       "light.shed_lights":{"light.shed_lights":{"type":"dimmer","on":"255","off":"0","last_brightness":""}},
-                       "light.shed_flood_light":{"light.shed_flood_light":{"type":"dimmer","on":"255","off":"0","last_brightness":""}},
-                       "device_tracker.scox0129_sc0129":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"},
-                                                         "light.sam_light_switch":{"type":"dimmer","on":"ignore","off":"0","last_brightness":""},
-                                                         "light.sam_fan_switch":{"type":"dimmer","on":"ignore","off":"0","last_brightness":""},
-                                                         "switch.sam_toilet_fan":{"type":"switch","on":"ignore","off":"0"},
-                                                         "switch.sam_toilet_light":{"type":"switch","on":"ignore","off":"0"},
-                                                         "switch.sam_vanity_switch":{"type":"switch","on":"ignore","off":"0"}},
-                       "light.sam_light_switch":{"light.sam_light_switch":{"type":"dimmer","on":"255","off":"0","last_brightness":""}},
-                       "light.sam_fan_switch":{"light.sam_fan_switch":{"type":"dimmer","on":"128","off":"0","last_brightness":""}},
-                       "device_tracker.ccox0605_ccox0605":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"},
-                                                           "light.charlie_light_switch":{"type":"dimmer","on":"ignore","off":"0","last_brightness":""},
-                                                           "light.charlie_fan_switch":{"type":"dimmer","on":"255","off":126,"last_brightness":""}},
-                       "light.charlie_light_switch":{"light.charlie_light_switch":{"type":"dimmer","on":"255","off":"0","last_brightness":""}},
-                       "light.charlie_fan_switch":{"light.charlie_fan_switch":{"type":"dimmer","on":"128","off":"0","last_brightness":""}},
-                       "group.app_light_control_master":{"light.master_light_switch":{"type":"dimmer","on":"ignore","off":"0","last_brightness":""},
-                                                         "light.master_fan":{"type":"dimmer","on":"ignore","off":"0","last_brightness":""},
-                                                         "light.master_floor_light":{"type":"dimmer","on":"ignore","off":"0","last_brightness":""},
-                                                         "switch.master_toilet_fan":{"type":"switch","on":"ignore","off":"0"},
-                                                         "switch.master_toilet_light":{"type":"switch","on":"ignore","off":"0"}},
-                       "device_tracker.scox1209_scox1209":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
-                       "device_tracker.turboc1208_cc1208":{"switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"ignore"}},
-                       "light.master_floor_light":{"light.master_floor_light":{"type":"dimmer","on":"128","off":"0","last_brightness":""}},
-                       "switch.master_toilet_light":{"switch.master_toilet_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
-                       "switch.half_bath_light":{"switch.half_bath_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
-                       "switch.sam_toilet_light":{"switch.sam_toilet_fan":{"type":"switch","on":"delay,on,300","off":"delay,off,300"}},
-                       "input_boolean.spot":{"switch.kitchen_overhead_light":{"type":"switch","on":"on","off":"off"},
-                                             "light.stairway_light_switch":{"type":"dimmer","on":"255","off":"0","last_brightness":""},
-                                             "switch.downstairs_hallway_light":{"type":"switch","on":"on","off":"off"}},
+    self.control_dict={"light.den_fan_light":{"light.den_fan_light":{"on":"50","off":"0","last_brightness":""}},
+                       "light.den_fan":{"light.den_fan":{"on":"50","off":"0","last_brightness":""}},
+                       "switch.breakfast_room_light":{"switch.breakfast_room_light":{"on":"on","off":"off"}},
+                       "light.office_lights":{"light.office_lights":{"on":"50","off":"0","last_brightness":""}},
+                       "light.office_fan":{"light.office_fan":{"on":"128","off":"0","last_brightness":""}},
+                       "sensor.ge_32563_hinge_pin_smart_door_sensor_access_control_4_9":{"light.office_lights":{"on":"50","off":"0","last_brightness":""}},
+                       "media_player.dentv":{"light.den_fan_light":{"on":"10","off":"last","last_brightness":""},
+                                             "switch.breakfast_room_light":{"on":"off","off":"on"}},
+                       "media_player.office_directv":{"light.office_lights":{"on":"10","off":"last","last_brigthness":""}},
+                       "switch.downstairs_hallway_light":{"switch.downstairs_hallway_light":{"on":"on","off":"off"}},
+                       "switch.carriage_lights":{"switch.carriage_lights":{"on":"on","off":"off"}},
+                       "sun.sun":{"switch.carriage_lights":{"on":"off","off":"on"}},
+                       "light.master_light_switch":{"light.master_light_switch":{"on":"255","off":"0","last_brightness":""}},
+                       "light.shed_lights":{"light.shed_lights":{"on":"255","off":"0","last_brightness":""}},
+                       "light.shed_flood_light":{"light.shed_flood_light":{"on":"255","off":"0","last_brightness":""}},
+                       "device_tracker.scox0129_sc0129":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"},
+                                                         "light.sam_light_switch":{"on":"ignore","off":"0","last_brightness":""},
+                                                         "light.sam_fan_switch":{"on":"ignore","off":"0","last_brightness":""},
+                                                         "switch.sam_toilet_fan":{"on":"ignore","off":"0"},
+                                                         "switch.sam_toilet_light":{"on":"ignore","off":"0"},
+                                                         "switch.sam_vanity_switch":{"on":"ignore","off":"0"}},
+                       "light.sam_light_switch":{"light.sam_light_switch":{"on":"255","off":"0","last_brightness":""}},
+                       "light.sam_fan_switch":{"light.sam_fan_switch":{"on":"128","off":"0","last_brightness":""}},
+                       "device_tracker.ccox0605_ccox0605":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"},
+                                                           "light.charlie_light_switch":{"on":"ignore","off":"0","last_brightness":""},
+                                                           "light.charlie_fan_switch":{"on":"255","off":126,"last_brightness":""}},
+                       "light.charlie_light_switch":{"light.charlie_light_switch":{"on":"255","off":"0","last_brightness":""}},
+                       "light.charlie_fan_switch":{"light.charlie_fan_switch":{"on":"128","off":"0","last_brightness":""}},
+                       "group.app_light_control_master":{"light.master_light_switch":{"on":"ignore","off":"0","last_brightness":""},
+                                                         "light.master_fan":{"on":"ignore","off":"0","last_brightness":""},
+                                                         "light.master_floor_light":{"on":"ignore","off":"0","last_brightness":""},
+                                                         "switch.master_toilet_fan":{"on":"ignore","off":"0"},
+                                                         "switch.master_toilet_light":{"on":"ignore","off":"0"}},
+                       "device_tracker.scox1209_scox1209":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"}},
+                       "device_tracker.turboc1208_cc1208":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"}},
+                       "light.master_floor_light":{"light.master_floor_light":{"on":"128","off":"0","last_brightness":""}},
+                       "switch.master_toilet_light":{"switch.master_toilet_fan":{"on":"delay,on,300","off":"delay,off,300"}},
+                       "switch.half_bath_light":{"switch.half_bath_fan":{"on":"delay,on,300","off":"delay,off,300"}},
+                       "switch.sam_toilet_light":{"switch.sam_toilet_fan":{"on":"delay,on,300","off":"delay,off,300"}},
+                       "input_boolean.spot":{"switch.kitchen_overhead_light":{"on":"on","off":"off"},
+                                             "light.stairway_light_switch":{"on":"255","off":"0","last_brightness":""},
+                                             "switch.downstairs_hallway_light":{"on":"on","off":"off"}},
                        "time":{"19:00:00":{"light.front_porch_lights":{"state":"on","dow":"m,t,w,th,f"},
                                            "switch.back_porch_light":{"state":"on","dow":"all"}},
                                "23:30:00":{"switch.back__porch_light":{"state":"off","dow":"all"}}},
-                       "binary_sensor.ring_front_door_ding":{"switch.front_door_light":{"type":"switch","on":"on","off":"delay,off,900"}} }
+                       "binary_sensor.ring_front_door_ding":{"switch.front_door_light":{"on":"on","off":"delay,off,900"}} }
 
     #self.log("group.app_light_control_master = {}".format(self.get_state("group.app_light_control_master")))
 
@@ -114,7 +163,7 @@ class light_control(appapi.my_appapi):
     newstate=""
     if state in self.states["on"]:
       newstate="on"
-    elif state in self.states["off"]:
+    elif (state in self.states["off"]) or (state=="0"):
       newstate= "off"
     else :
       newstate= state      # we don't know what the state is to normalize it so it's a unique value lets just return it
@@ -183,7 +232,8 @@ class light_control(appapi.my_appapi):
         self.run_in(self.dim_light,60,light=light)                                                  # schedule a call back to dim the light some
     else:                                                                                       # else only other option is the desired state = on
       target_type, target_name = self.split_entity(light)
-      self.log("New desired state for {} is on or has a dimmmer value {}".format(light,new_light_state))
+      self.log("New desired state for {} is {}".format(light,new_light_state))
+      self.log("{} current state is {}".format(light,self.get_state(light,attribute="state")))
       if self.get_state(light,attribute="state") in self.states["on"]:                            # if the current state is on and desired state is on
         self.log("{}'s current state is on".format(light))                                          # light is already on
         if target_type=="light":                                                                      # if light is a dimmer
