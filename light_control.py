@@ -129,15 +129,21 @@ class light_control(appapi.my_appapi):
       for light in self.control_dict[trigger]:            # loop through lights controled by control entity
         self.set_light_state(trigger,light,new)
 
-
+  ########
+  #
+  # set_light_state - this is the meet of the application
+  # decide what to do with a given trigger, light combination
+  ########
   def set_light_state(self,trigger,light,trigger_state):
-    self.log("light {}, self.control_dict[trigger][light] {}, trigger_state {} - {}".format(light,self.control_dict[trigger][light],trigger_state,self.convert_dev_state(trigger_state)))
-    if self.control_dict[trigger][light][self.convert_dev_state(trigger_state)] in self.states["off"]:         # if new desired state is off
-      self.log("New desired state is {}".format(self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]))
+    trigger_light=self.control_dict[trigger][light]
+    new_light_state=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]
+    self.log("light {}, self.control_dict[trigger][light] {}, trigger_state {} - {}".format(light,trigger_light,trigger_state,self.convert_dev_state(trigger_state)))
+    if new_light_state in self.states["off"]:         # if new desired state is off
+      self.log("New desired state is {}".format(new_light_state))
       self.log("turn off the light regardless of anything else")
       self.turn_off(light)
-    elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)].find("delay")>=0:
-      ctlstr=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]
+    elif new_light_state.find("delay")>=0:
+      ctlstr=new_light_state
       tmpstr=ctlstr[ctlstr.find(",")+1:]
       onoff=tmpstr[0:tmpstr.find(",")]
       seconds=tmpstr[tmpstr.find(",")+1:]
@@ -152,10 +158,10 @@ class light_control(appapi.my_appapi):
         #self.turn_on_in(light,seconds)
       else:
         self.log("invalid value for on/off - {}".format(onoff))
-    elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="ignore":
+    elif new_light_state=="ignore":
       self.log("do not do anything, ignore")
-    elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="last":       # new desired state is on or last
-      self.log("last - current state={}".format(self.get_state(light,attribute="state")))
+    elif new_light_state=="last":       # new desired state is on or last
+      self.log("*last - current state={}".format(self.get_state(light,attribute="state")))
       if self.get_state(light,attribute="state") in self.states["on"]:                             # if current state is on
         dev, name=self.split_entity(light)
         if dev=="light"                                        :                                     # is this a light (lights are dimable and have a last_brightness attribute)
@@ -171,31 +177,33 @@ class light_control(appapi.my_appapi):
           self.turn_off(light)                                                                           # turn if off
       else:                                                                                        # current state is off and desired state is off
         self.log("light is off leave it that way")                                                   # light wasn't on in the first place so don't do anything
-    elif self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]=="dim":         # if the new state = dim  - this is to handle dimming lights over time
+    elif new_light_state=="dim":         # if the new state = dim  - this is to handle dimming lights over time
       self.log("dim light {} till it's off".format(light))
       if self.get_state(light,attribute="state") in self.states["on"]:                            # check if the light is on
         self.run_in(self.dim_light,60,light=light)                                                  # schedule a call back to dim the light some
     else:                                                                                       # else only other option is the desired state = on
-      self.log("New desired state for {} is on or has a dimmmer value {}".format(light,self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]))
+      target_type, target_name = self.split_entity(light)
+      self.log("New desired state for {} is on or has a dimmmer value {}".format(light,new_light_state))
       if self.get_state(light,attribute="state") in self.states["on"]:                            # if the current state is on and desired state is on
         self.log("{}'s current state is on".format(light))                                          # light is already on
-        if self.control_dict[trigger][light]["type"]=="dimmer":                                      # if light is a dimmer
-          self.log("{} is a currently on dimmer seting value to {} ".format(light,self.control_dict[trigger][light][self.convert_dev_state(trigger_state)]))
+        if target_type=="light":                                                                      # if light is a dimmer
+          self.log("{} is a currently on dimmer seting value to {} ".format(light,new_light_state))
           self.control_dict[trigger][light]["last_brightness"]=self.get_state(light,attribute="brightness") # save the current brightness
-          if self.control_dict[trigger][light][self.convert_dev_state(trigger_state)] == "on":         # if new state = on  
+          if new_light_state == "on":         # if new state = on  
             self.turn_on(light)                                                                          # turn on light 
           else:                                                                                        # value given to dim to, so dim to that value
-            self.turn_on(light,brightness=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)])  # turn on the light at the given brightness
+            self.turn_on(light,brightness=new_light_state)  # turn on the light at the given brightness
         else:                                                                                       # else we are not a dimmer
           self.log("{} is a currently on switch".format(light))
           self.turn_on(light)                                                                       # light is a switch so just turn it on
       else:                                                                                       # light is off but desired state is on
         dev,name=self.split_entity(trigger)
+        target_type, target_name = self.split_entity(light)
         self.log("device type={}".format(dev))
         if dev in self.direct_light_control:                                                         # is the trigger controlling itself like a wall switch, or door hinge controlling a light
-          if self.control_dict[trigger][light]["type"]=="dimmer":                                      # if light is a dimmer
-            self.log("{} is a currently off Dimmer".format(light))                                      
-            self.turn_on(light,brightness=self.control_dict[trigger][light][self.convert_dev_state(trigger_state)])  # light is currently off so just turn it on at designated brightness
+          if target_type=="light":                                                                     # if light is a dimmer
+            self.log("{} is a currently off light".format(light))                                      
+            self.turn_on(light,brightness=new_light_state)  # light is currently off so just turn it on at designated brightness
           else:                                                                                       # else light is not a dimmer
             self.log("{} is a currently off switch".format(light))
             self.turn_on(light)                                                                        # light is currently off, so just turn it on
