@@ -54,9 +54,10 @@ class light_control(appapi.my_appapi):
 
   def initialize(self):
     self.log("lightcontrol")
-    self.dim_rate=50   
+    self.dim_rate=50
+    self.house_map=["HOME","HOUSE"]
     self.dow_map=["M","T","W","TH","F","S","SU"]
-    self.states={"on":["on","open","23","playing","Home","house","above_horizon"],
+    self.states={"on":["on","open","23","playing","Home","home","house","above_horizon"],
                  "off":["off","closed","22",0,"0",
                         "not_home","Academy","Bayer","Corporate",                # handle non-home zones
                         "covington pike","frayser","Macon Rd","MBA",             # non-home zones
@@ -78,7 +79,8 @@ class light_control(appapi.my_appapi):
                        "media_player.office_directv":{"light.office_lights":{"on":"10","off":"last","last_brigthness":""}},
                        "switch.downstairs_hallway_light":{"switch.downstairs_hallway_light":{"on":"on","off":"off"}},
                        "switch.carriage_lights":{"switch.carriage_lights":{"on":"on","off":"off"}},
-                       "sun.sun":{"switch.carriage_lights":{"on":"off","off":"on"}},
+                       "sun.sun":{"switch.carriage_lights":{"on":"off","off":"on"},
+                                  "switch.back_porch_light":{"on":"off","off":"ignore"}},
                        "light.master_light_switch":{"light.master_light_switch":{"on":"255","off":"0","last_brightness":""}},
                        "light.shed_lights":{"light.shed_lights":{"on":"255","off":"0","last_brightness":""}},
                        "light.shed_flood_light":{"light.shed_flood_light":{"on":"255","off":"0","last_brightness":""}},
@@ -95,16 +97,21 @@ class light_control(appapi.my_appapi):
                                                            "light.charlie_fan_switch":{"on":"255","off":126,"last_brightness":""}},
                        "light.charlie_light_switch":{"light.charlie_light_switch":{"on":"255","off":"0","last_brightness":""}},
                        "light.charlie_fan_switch":{"light.charlie_fan_switch":{"on":"128","off":"0","last_brightness":""}},
-                       "group.app_light_control_master":{"light.master_light_switch":{"on":"ignore","off":"0","last_brightness":""},
+                       "switch.media_room_lights":{"switch.media_room_lights":{"on":"on","off":"off"}},
+                       "light.media_room_fan":{"light.media_room_fan":{"on":"128","off":"0","last_brightness":""}},
+                       "input_boolean.masterishome":{"light.master_light_switch":{"on":"ignore","off":"0","last_brightness":""},
                                                          "light.master_fan":{"on":"ignore","off":"0","last_brightness":""},
                                                          "light.master_floor_light":{"on":"ignore","off":"0","last_brightness":""},
                                                          "switch.master_toilet_fan":{"on":"ignore","off":"0"},
-                                                         "switch.master_toilet_light":{"on":"ignore","off":"0"}},
-                       "device_tracker.scox1209_scox1209":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"}},
-                       "device_tracker.turboc1208_cc1208":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"}},
+                                                         "switch.master_toilet_light":{"on":"ignore","off":"0"},
+                                                         "switch.downstairs_hallway_light":{"on":"on","off":"off"}},
+                       #"group.app_light_control_master":{"input_boolean.masterishome":{"on":"on","off":"dtupdate"}},
+                       "device_tracker.scox1209_scox1209":{"input_boolean.masterishome":{"on":"on","off":"dtupdate,group.app_light_control_master"}},
+                       "device_tracker.turboc1208_cc1208":{"input_boolean.masterishome":{"on":"on","off":"dtupdate,group.app_light_control_master"}},
+                       "input_boolean.master_bath_high_humidity":{"switch.master_bath_fan":{"on":"on","off":"off"}},
                        "light.master_floor_light":{"light.master_floor_light":{"on":"128","off":"0","last_brightness":""}},
                        "switch.master_toilet_light":{"switch.master_toilet_fan":{"on":"delay,on,300","off":"delay,off,300"}},
-                       "switch.half_bath_light":{"switch.half_bath_fan":{"on":"delay,on,30","off":"delay,off,30"}},
+                       "switch.half_bath_light":{"switch.half_bath_fan":{"on":"delay,on,300","off":"delay,off,300"}},
                        "switch.sam_toilet_light":{"switch.sam_toilet_fan":{"on":"delay,on,300","off":"delay,off,300"}},
                        "input_boolean.spot":{"switch.kitchen_overhead_light":{"on":"on","off":"off"},
                                              "light.stairway_light_switch":{"on":"255","off":"0","last_brightness":""},
@@ -112,11 +119,12 @@ class light_control(appapi.my_appapi):
                        "time":{"15:50:00":{"light.front_porch_lights":{"state":"on","dow":"m,t,w,th,f"},
                                            "switch.back_porch_light":{"state":"on","dow":"all"}},
                                "23:30:00":{"switch.back__porch_light":{"state":"off","dow":"all"}}},
+                       "sensor.master_bathroom_sensor_humidity":{"input_boolean.master_bath_high_humidity":self.calc_humidity},
                        "binary_sensor.ring_front_door_ding":{"switch.front_door_light":{"on":"on","off":"delay,off,900"}} }
 
     #self.log("group.app_light_control_master = {}".format(self.get_state("group.app_light_control_master")))
 
-    self.direct_light_control=["switch","light","sensor","binary_sensor","input_boolean"]
+    self.direct_light_control=["switch","light","sensor","binary_sensor","input_boolean","device_tracker","group","sun"]
 
     for trigger in self.control_dict:
       if trigger=="time":
@@ -127,6 +135,7 @@ class light_control(appapi.my_appapi):
             self.run_daily(self.timer_handler,self.parse_time(runtime),target_entity=target_entity,target_state=self.control_dict[trigger][runtime][target_entity]["state"],
                                                                        dow=self.control_dict[trigger][runtime][target_entity]["dow"])
       else:
+        self.log("listening for {}".format(trigger))
         self.listen_state(self.state_change,trigger,attributes="state")
 
   #############
@@ -174,9 +183,32 @@ class light_control(appapi.my_appapi):
   ########
   def state_change(self,trigger,attributes,old,new,kwargs):
     self.log("trigger={} old = {}-{} new= {}-{}".format(trigger,old,self.convert_dev_state(old),new,self.convert_dev_state(new)))
-    if not ((self.convert_dev_state(old)==self.convert_dev_state(new)) or (new=="unavailable")):     # control entity changed state
+    if ((self.convert_dev_state(old)!=self.convert_dev_state(new)) and (new!="unavailable")):     # control entity changed state
       for target in self.control_dict[trigger]:            # loop through lights controled by control entity
+        self.log("checking on target={}-{}".format(target, self.control_dict[trigger][target]))
         self.set_light_state(trigger,target,new)
+
+  def update_location(self,tracker,referenceentity):
+   self.log("in update_location")
+   tracker_list=[]
+   trackerishome=False
+   tracker_type,tracker_name=self.split_entity(tracker)
+   if tracker_type=="group":
+     tracker_list=self.build_entity_list(tracker) 
+   else:
+     tracker_list.append(tracker)
+   self.log("tracker_list={}".format(tracker_list))
+   for t in tracker_list:
+     self.log("checking on {}".format(t))
+     self.log("t={} state={}".format(t,self.get_state(t).upper()))
+     if self.get_state(t).upper() in self.house_map:
+       self.log("{} is home".format(t))
+       trackerishome=True
+
+   if trackerishome:
+     self.turn_on(referenceentity)
+   else:
+     self.turn_off(referenceentity)
 
   ########
   #
@@ -187,65 +219,74 @@ class light_control(appapi.my_appapi):
     trigger_type,trigger_name=self.split_entity(trigger)
     trigger_target=self.control_dict[trigger][target]
     target_type,target_name=self.split_entity(target)
-    new_target_state=self.control_dict[trigger][target][self.convert_dev_state(trigger_state)]
-    self.log("light {}, self.control_dict[trigger][target] {}, trigger_state {} - {}".format(target,trigger_target,trigger_state,self.convert_dev_state(trigger_state)))
-    if new_target_state in self.states["off"]:         # if new desired state is off
-      self.log("off - New desired state is {}".format(new_target_state))
-      self.turn_off(target)
-    elif new_target_state.find("delay")>=0:
-      ctlstr=new_target_state                          # parse delay string ("delay",state,seconds)
-      tmpstr=ctlstr[ctlstr.find(",")+1:]
-      onoff=tmpstr[0:tmpstr.find(",")]
-      seconds=tmpstr[tmpstr.find(",")+1:]
-      self.log("delay - turning {} {} in {} seconds trigger={}  trigger_state={}".format(onoff,target,seconds,trigger,trigger_state))
-      self.run_in(self.timer_handler,seconds,target_entity=target,target_state=onoff,trigger=trigger,trigger_state=trigger_state)
-    elif new_target_state=="ignore":
-      self.log("ignore - do not do anything")
-    elif new_target_state=="last":       # new desired state is on or last
-      self.log("last - current state={}".format(self.get_state(target,attribute="state")))
-      if self.get_state(target,attribute="state") in self.states["on"]:                             # if current state is on
-        if target_type=="light"                                        :                                     # is this a light (lights are dimable and have a last_brightness attribute)
-          if not self.control_dict[trigger][target]["last_brightness"]=="":                                # is there a value for last brightness
-            self.log("last - returning {} to previous state brightness {}".format(target,self.control_dict[trigger][target]["last_brightness"]))
-            self.turn_on(target,brightness=self.control_dict[trigger][target]["last_brightness"])              # yes and the light was on so adjust the brightness
-            self.control_dict[trigger][target]["last_brightness"]=""                                          # clear last brightness we are done with it
-          else:                                                                                          # there wasn't a value for last brightness
-            self.log("last - no previous light level must have been off")
-            self.turn_off(target)                                                                            # turn light off
-        else:                                                                                         # light is  a switch 
-          self.log("last - errro - switch so last makes no sense")
-          self.turn_off(target)                                                                           # turn if off
-      else:                                                                                        # current state is off and desired state is off
-        self.log("last - target is off leave it that way")                                                   # light wasn't on in the first place so don't do anything
-    #elif new_target_state=="dim":                                                                  # if the new state = dim  - this is to handle dimming lights over time
-      #self.log("dim - dim light {} till it's off".format(target))
-      #if self.get_state(target,attribute="state") in self.states["on"]:                            # check if the light is on
-        #self.run_in(self.dim_light,60,light=target)                                                  # schedule a call back to dim the light some
-    else:                                                                                       # else only other option is the desired state = on
-      self.log("on - New desired state for {} is {}".format(target,new_target_state))
-      self.log("on - {} current state is {}".format(target,self.get_state(target,attribute="state")))
-      if self.get_state(target,attribute="state") in self.states["on"]:                            # if the current state is on and desired state is on
-        self.log("on - {}'s current state is on".format(target))                                          # light is already on
-        if target_type=="light":                                                                      # if light is a dimmer
-          self.log("on - {} is a currently on light with brightness set to {} ".format(target,new_target_state))
-          self.control_dict[trigger][target]["last_brightness"]=self.get_state(target,attribute="brightness") # save the current brightness
-          if new_target_state == "on":                                                                  # if new state = on  
-            self.turn_on(target)                                                                          # turn on light 
-          else:                                                                                        # value given to dim to, so dim to that value
-            self.turn_on(target,brightness=new_target_state)                                              # turn on the light at the given brightness
-        else:                                                                                       # else we are not a dimmer
-          self.log("on - {} is a currently on switch".format(target))
-          self.turn_on(target)                                                                       # light is a switch so just turn it on even though it is on already
-      else:                                                                                       # light is off but desired state is on
-        if trigger_type in self.direct_light_control:                                               # is the trigger controlling itself like a wall switch, xor door hinge controlling a light
-          if target_type=="light":                                                                     # if light is a dimmer
-            self.log("on - {} is a currently off light".format(target))                                      
-            self.turn_on(target,brightness=new_target_state)                                             # light is currently off so just turn it on at designated brightness
-          else:                                                                                        # else light is not a dimmer
-            self.log("on - {} is a currently off switch".format(target))
-            self.turn_on(target)                                                                         # light is currently off, so just turn it on
-        else:
-          self.log("on - not sure why this is here - Trigger {} turned on, but light {} is off so leaving it off".format(trigger,target))
+    if callable(self.control_dict[trigger][target]):
+      self.log("preparing to execute {}".format(self.control_dict[trigger][target]))
+      self.control_dict[trigger][target](trigger,target)
+    else:
+      new_target_state=self.control_dict[trigger][target][self.convert_dev_state(trigger_state)]
+      self.log("light {}, self.control_dict[trigger][target] {}, trigger_state {} - {}".format(target,trigger_target,trigger_state,self.convert_dev_state(trigger_state)))
+      self.log("new_target_state={}".format(new_target_state))
+      if new_target_state in self.states["off"]:         # if new desired state is off
+        self.log("off - New desired state is {}".format(new_target_state))
+        self.turn_off(target)
+      elif new_target_state.find("dtupdate")>=0:
+        ctlstr=new_target_state
+        tstentity=new_target_state[new_target_state.find(",")+1:]
+        self.update_location(tstentity,target)
+      elif new_target_state.find("delay")>=0:
+        ctlstr=new_target_state                          # parse delay string ("delay",state,seconds)
+        tmpstr=ctlstr[ctlstr.find(",")+1:]
+        onoff=tmpstr[0:tmpstr.find(",")]
+        seconds=tmpstr[tmpstr.find(",")+1:]
+        self.log("delay - turning {} {} in {} seconds trigger={}  trigger_state={}".format(onoff,target,seconds,trigger,trigger_state))
+        self.run_in(self.timer_handler,seconds,target_entity=target,target_state=onoff,trigger=trigger,trigger_state=trigger_state)
+      elif new_target_state=="ignore":
+        self.log("ignore - do not do anything")
+      elif new_target_state=="last":       # new desired state is on or last
+        self.log("last - current state={}".format(self.get_state(target,attribute="state")))
+        if self.get_state(target,attribute="state") in self.states["on"]:                             # if current state is on
+          if target_type=="light"                                        :                                     # is this a light (lights are dimable and have a last_brightness attribute)
+            if not self.control_dict[trigger][target]["last_brightness"]=="":                                # is there a value for last brightness
+              self.log("last - returning {} to previous state brightness {}".format(target,self.control_dict[trigger][target]["last_brightness"]))
+              self.turn_on(target,brightness=self.control_dict[trigger][target]["last_brightness"])              # yes and the light was on so adjust the brightness
+              self.control_dict[trigger][target]["last_brightness"]=""                                          # clear last brightness we are done with it
+            else:                                                                                          # there wasn't a value for last brightness
+              self.log("last - no previous light level must have been off")
+              self.turn_off(target)                                                                            # turn light off
+          else:                                                                                         # light is  a switch 
+            self.log("last - errro - switch so last makes no sense")
+            self.turn_off(target)                                                                           # turn if off
+        else:                                                                                        # current state is off and desired state is off
+          self.log("last - target is off leave it that way")                                                   # light wasn't on in the first place so don't do anything
+      #elif new_target_state=="dim":                                                                  # if the new state = dim  - this is to handle dimming lights over time
+        #self.log("dim - dim light {} till it's off".format(target))
+        #if self.get_state(target,attribute="state") in self.states["on"]:                            # check if the light is on
+          #self.run_in(self.dim_light,60,light=target)                                                  # schedule a call back to dim the light some
+      else:                                                                                       # else only other option is the desired state = on
+        self.log("on - New desired state for {} is {}".format(target,new_target_state))
+        self.log("on - {} current state is {}".format(target,self.get_state(target,attribute="state")))
+        if self.get_state(target,attribute="state") in self.states["on"]:                            # if the current state is on and desired state is on
+          self.log("on - {}'s current state is on".format(target))                                          # light is already on
+          if target_type=="light":                                                                      # if light is a dimmer
+            self.log("on - {} is a currently on light with brightness set to {} ".format(target,new_target_state))
+            self.control_dict[trigger][target]["last_brightness"]=self.get_state(target,attribute="brightness") # save the current brightness
+            if new_target_state == "on":                                                                  # if new state = on  
+              self.turn_on(target)                                                                          # turn on light 
+            else:                                                                                        # value given to dim to, so dim to that value
+              self.turn_on(target,brightness=new_target_state)                                              # turn on the light at the given brightness
+          else:                                                                                       # else we are not a dimmer
+            self.log("on - {} is a currently on switch".format(target))
+            self.turn_on(target)                                                                       # light is a switch so just turn it on even though it is on already
+        else:                                                                                       # light is off but desired state is on
+          if trigger_type in self.direct_light_control:                                               # is the trigger controlling itself like a wall switch, xor door hinge controlling a light
+            if target_type=="light":                                                                     # if light is a dimmer
+              self.log("on - {} is a currently off light".format(target))                                      
+              self.turn_on(target,brightness=new_target_state)                                             # light is currently off so just turn it on at designated brightness
+            else:                                                                                        # else light is not a dimmer
+              self.log("on - {} is a currently off switch".format(target))
+              self.turn_on(target)                                                                         # light is currently off, so just turn it on
+          else:
+            self.log("on - not sure why this is here - Trigger {} turned on, but light {} is off so leaving it off".format(trigger,target))
     self.log("the end of set_light_state")
 
 #  def dim_light(self,kwargs):
@@ -269,4 +310,10 @@ class light_control(appapi.my_appapi):
 #        self.run_in(self.dim_light,600,light=light)                                       # check again in 10 minutes to start diming again if spot is #done
 #    else:
 #      self.log("light is finally off don't schedule anymore checks")
-    
+   
+  def calc_humidity(self,trigger,target):
+    self.log("trigger={},target={}".format(trigger,target))
+    if int(self.get_state(trigger))>85:
+      self.turn_on(target)
+    else:
+      self.turn_off(target)
