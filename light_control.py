@@ -54,6 +54,9 @@ class light_control(appapi.my_appapi):
 
   def initialize(self):
     self.log("lightcontrol")
+#    return 0
+    #self.log("type={} name={}".format(test.get_type(),test.get_name()))
+    #test.turn_off()
     self.dim_rate=50
     self.house_map=["HOME","HOUSE"]
     self.dow_map=["M","T","W","TH","F","S","SU"]
@@ -61,7 +64,7 @@ class light_control(appapi.my_appapi):
                  "off":["off","closed","22",0,"0",
                         "not_home","Academy","Bayer","Corporate",                # handle non-home zones
                         "covington pike","frayser","Macon Rd","MBA",             # non-home zones
-                        "Quince","southhaven","Spottswood","UOM",                # non-home zones
+                        "Quince","Southaven","Spottswood","UOM",                # non-home zones
                         "Winchester",                                            # non-home zones
                         "None","below_horizon"]}
     # Control_dict structure
@@ -71,12 +74,12 @@ class light_control(appapi.my_appapi):
     self.control_dict={"light.den_fan_light":{"light.den_fan_light":{"on":"50","off":"0","last_brightness":""}},
                        "light.den_fan":{"light.den_fan":{"on":"50","off":"0","last_brightness":""}},
                        "switch.breakfast_room_light":{"switch.breakfast_room_light":{"on":"on","off":"off"}},
-                       "light.office_lights":{"light.office_lights":{"on":"50","off":"0","last_brightness":""}},
-                       "light.office_fan":{"light.office_fan":{"on":"128","off":"0","last_brightness":""}},
-                       "sensor.ge_32563_hinge_pin_smart_door_sensor_access_control_4_9":{"light.office_lights":{"on":"50","off":"0","last_brightness":""}},
+                       #"light.office_lights":{"light.office_lights":{"on":"50","off":"0","last_brightness":""}},
+                       #"light.office_fan":{"light.office_fan":{"on":"128","off":"0","last_brightness":""}},
+                       #"sensor.ge_32563_hinge_pin_smart_door_sensor_access_control_4_9":{"light.office_lights":{"on":"50","off":"0","last_brightness":""}},
                        "media_player.dentv":{"light.den_fan_light":{"on":"10","off":"last","last_brightness":""},
                                              "switch.breakfast_room_light":{"on":"off","off":"on"}},
-                       "media_player.office_directv":{"light.office_lights":{"on":"10","off":"last","last_brigthness":""}},
+                       #"media_player.office_directv":{"light.office_lights":{"on":"10","off":"last","last_brigthness":""}},
                        "switch.downstairs_hallway_light":{"switch.downstairs_hallway_light":{"on":"on","off":"off"}},
                        "switch.carriage_lights":{"switch.carriage_lights":{"on":"on","off":"off"}},
                        "sun.sun":{"switch.carriage_lights":{"on":"off","off":"on"},
@@ -84,17 +87,17 @@ class light_control(appapi.my_appapi):
                        "light.master_light_switch":{"light.master_light_switch":{"on":"255","off":"0","last_brightness":""}},
                        "light.shed_lights":{"light.shed_lights":{"on":"255","off":"0","last_brightness":""}},
                        "light.shed_flood_light":{"light.shed_flood_light":{"on":"255","off":"0","last_brightness":""}},
-                       "device_tracker.scox0129_sc0129":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"},
-                                                         "light.sam_light_switch":{"on":"ignore","off":"0","last_brightness":""},
-                                                         "light.sam_fan_switch":{"on":"ignore","off":"0","last_brightness":""},
-                                                         "switch.sam_toilet_fan":{"on":"ignore","off":"0"},
-                                                         "switch.sam_toilet_light":{"on":"ignore","off":"0"},
-                                                         "switch.sam_vanity_switch":{"on":"ignore","off":"0"}},
-                       "light.sam_light_switch":{"light.sam_light_switch":{"on":"255","off":"0","last_brightness":""}},
-                       "light.sam_fan_switch":{"light.sam_fan_switch":{"on":"128","off":"0","last_brightness":""}},
+                       #"device_tracker.scox0129_sc0129":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"},
+                       #                                  "light.sam_light_switch":{"on":"ignore","off":"0","last_brightness":""},
+                       #                                  "light.sam_fan_switch":{"on":"ignore","off":"0","last_brightness":""},
+                       #                                  "switch.sam_toilet_fan":{"on":"ignore","off":"0"},
+                       #                                  "switch.sam_toilet_light":{"on":"ignore","off":"0"},
+                       #                                  "switch.sam_vanity_switch":{"on":"ignore","off":"0"}},
+                       #"light.sam_light_switch":{"light.sam_light_switch":{"on":"255","off":"0","last_brightness":""}},
+                       #"light.sam_fan_switch":{"light.sam_fan_switch":{"on":"128","off":"0","last_brightness":""}},
                        "device_tracker.ccox0605_ccox0605":{"switch.downstairs_hallway_light":{"on":"on","off":"ignore"},
                                                            "light.charlie_light_switch":{"on":"ignore","off":"0","last_brightness":""},
-                                                           "light.charlie_fan_switch":{"on":"255","off":126,"last_brightness":""}},
+                                                           "light.charlie_fan_switch":{"on":"255","off":"126","last_brightness":""}},
                        "light.charlie_light_switch":{"light.charlie_light_switch":{"on":"255","off":"0","last_brightness":""}},
                        "light.charlie_fan_switch":{"light.charlie_fan_switch":{"on":"128","off":"0","last_brightness":""}},
                        "switch.media_room_lights":{"switch.media_room_lights":{"on":"on","off":"off"}},
@@ -105,22 +108,41 @@ class light_control(appapi.my_appapi):
                                                          "switch.master_toilet_fan":{"on":"ignore","off":"0"},
                                                          "switch.master_toilet_light":{"on":"ignore","off":"0"},
                                                          "switch.downstairs_hallway_light":{"on":"on","off":"off"}},
-                       #"group.app_light_control_master":{"input_boolean.masterishome":{"on":"on","off":"dtupdate"}},
                        "device_tracker.scox1209_scox1209":{"input_boolean.masterishome":{"on":"on","off":"dtupdate,group.app_light_control_master"}},
                        "device_tracker.turboc1208_cc1208":{"input_boolean.masterishome":{"on":"on","off":"dtupdate,group.app_light_control_master"}},
                        "input_boolean.master_bath_high_humidity":{"switch.master_bath_fan":{"on":"on","off":"off"}},
                        "light.master_floor_light":{"light.master_floor_light":{"on":"128","off":"0","last_brightness":""}},
                        "switch.master_toilet_light":{"switch.master_toilet_fan":{"on":"delay,on,300","off":"delay,off,300"}},
                        "switch.half_bath_light":{"switch.half_bath_fan":{"on":"delay,on,300","off":"delay,off,300"}},
-                       "switch.sam_toilet_light":{"switch.sam_toilet_fan":{"on":"delay,on,300","off":"delay,off,300"}},
-                       "input_boolean.spot":{"switch.kitchen_overhead_light":{"on":"on","off":"off"},
-                                             "light.stairway_light_switch":{"on":"255","off":"0","last_brightness":""},
-                                             "switch.downstairs_hallway_light":{"on":"on","off":"off"}},
-                       "time":{"15:50:00":{"light.front_porch_lights":{"state":"on","dow":"m,t,w,th,f"},
+                       #"switch.sam_toilet_light":{"switch.sam_toilet_fan":{"on":"delay,on,300","off":"delay,off,300"}},
+                       "time":{"19:00:00":{"light.front_porch_lights":{"state":"on","dow":"m,t,w,th,f"},
                                            "switch.back_porch_light":{"state":"on","dow":"all"}},
                                "23:30:00":{"switch.back__porch_light":{"state":"off","dow":"all"}}},
                        "sensor.master_bathroom_sensor_humidity":{"input_boolean.master_bath_high_humidity":self.calc_humidity},
                        "binary_sensor.ring_front_door_ding":{"switch.front_door_light":{"on":"on","off":"delay,off,900"}} }
+
+    self.exception_dict={"light.sam_light_switch":["input_boolean.samishomeoverride"],
+                         "light.sam_toilet_light":["input_boolean.samishomeoverride","input_boolean.guestishomeoverride"],
+                         "light.sam_vanity_switch":["input_boolean.samishomeoverride","input_boolean.guestishomeoverride"],
+                         "light.charlie_light_switch":["input_boolean.charlieishomeoverride"],
+                         "light.master_floor_light":["input_boolean.masterishomeoverride"],
+                         "light.master_light_switch":["input_boolean.masterishomeoverride"],
+                         "light.office_lights":["input_boolean.partyoverride"],
+                         "light.shed_flood_light":["input_boolean.partyoverride"],
+                         "light.stairway_light_switch":["input_boolean.partyoverride","input_boolean.samishomeoverride",
+                                                        "input_boolean.charlieishomeoverride","input_boolean.guestishomeoverride"],
+                         "light.den_fan_light":["input_boolean.partyoverride","input_boolean.samishomeoverride",
+                                                "input_boolean.charlieishomeoverride","input_boolean.guestishomeoverride"],
+                         "switch.back_porch_light":["input_boolean.partyoverride"],
+                         "switch.breakfast_room_light":["input_boolean.partyoverride"],
+                         "switch.downstairs_hallway_light":["input_boolean.partyoverride","input_boolean.samishomeoverride",
+                                                         "input_boolean.charlieishomeoverride","input_boolean.guestishomeoverride"],
+                         "switch.front_door_light":["input_boolean.partyoverride"],
+                         "switch.garage_lights":["input_boolean.partyoverride"],
+                         "switch.guest_light_switch":["input_boolean.partyoverride","input_boolean.guestishomeoverride"],
+                         "switch.half_bath_light":["input_boolean.partyoverride"],
+                         "switch.house_flood_lights":["input_boolean.partyoverride"],
+                         "switch.media_room_lights":["input_boolean.partyoverride"]}
 
     #self.log("group.app_light_control_master = {}".format(self.get_state("group.app_light_control_master")))
 
@@ -289,31 +311,23 @@ class light_control(appapi.my_appapi):
             self.log("on - not sure why this is here - Trigger {} turned on, but light {} is off so leaving it off".format(trigger,target))
     self.log("the end of set_light_state")
 
-#  def dim_light(self,kwargs):
-#    light=kwargs.get("light",None)
-#    self.log("dimming light={}".format(light))
-#    if self.get_state(light) in self.states["on"]:
-#      devtypes=["light","switch"]
-#      spot_lights=self.build_entity_list("group.app_spotcontrol_spots_lights",devtypes)
-#      if not ((self.get_state("input_boolean.spot") in self.states["on"]) and (light in spot_lights)):   # are we dealing with an exception (spot cleaning)
-#        current_brightness=self.get_state(light,"brightness")
-#        if current_brightness>=self.dim_rate:                                         # not an exception, is the light still bright enough to see
-#          self.turn_on(light,brightness= current_brightness-self.dim_rate) # yes, so dim it somemore
-#          self.log("new brightness={}".format(self.get_state(light,"brightness")))
-#          self.run_in(self.dim_light,300,light=light)                                      # schedule to run again
-#        else:
-#          self.turn_off(light)                                                            # to dim to see so turn it off
-#      else:                                                                               # else this is an exception (spot cleaning)
-#        self.log("exception spot is cleaning")
-#        self.turn_on(light,brightness=255)
-#        self.log("returning to full brightness")
-#        self.run_in(self.dim_light,600,light=light)                                       # check again in 10 minutes to start diming again if spot is #done
-#    else:
-#      self.log("light is finally off don't schedule anymore checks")
-   
   def calc_humidity(self,trigger,target):
     self.log("trigger={},target={}".format(trigger,target))
-    if int(self.get_state(trigger))>85:
+    if int(self.get_state(trigger))>78:
       self.turn_on(target)
     else:
       self.turn_off(target)
+
+  def turn_off(self,entity_id):
+    self.log("in local turn_off {}".format(entity_id))
+    exception=False
+    if entity_id in self.exception_dict:
+      for override in self.exception_dict[entity_id]:
+        self.log("is {} in {} - {}".format(entity_id,override,self.get_state(override)))
+        if self.get_state(override)=="on":
+          self.log("exception do not turn off light")
+          exception=True
+    
+    if not exception:
+      super().turn_off(entity_id)      
+    
