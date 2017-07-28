@@ -4,7 +4,7 @@ class light_control(appapi.my_appapi):
 
   def initialize(self):
     # self.LOGLEVEL="DEBUG"
-    self.log("light control App")
+    self.log("light_control App")
     self.fan=["off",0]
     if "targets" in self.args:
       self.targets=eval(self.args["targets"])
@@ -86,6 +86,25 @@ class light_control(appapi.my_appapi):
 
     self.fan[0]=sfos
     self.fan[1]=sfo
+
+    overlap=False
+    for a in self.targets:
+      for b in self.targets[a]["onState"]:
+        if b>=0:
+          if b in self.targets[a]["offState"]:
+            self.log("onState overlaps offState in {} on element {}".format(a,b))
+            overlap=True
+          if b in self.targets[a]["ignoreState"]:
+            self.log("onState overlaps ignoreState in {} on element {}".format(a,b))
+            overlap=True
+      for b in self.targets[a]["offState"]:
+        if b>=0:
+          if b in self.targets[a]["ignoreState"]:
+            self.log("ignoreState overlaps offState in {} on element {}".format(a,b))
+            overlap=True
+    if overlap:
+      self.log("Please fix configuration before continuing")
+      return 1
 
     for ent in self.targets:
       for ent_trigger in self.targets[ent]["triggers"]:
