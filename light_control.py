@@ -45,13 +45,13 @@ class light_control(appapi.my_appapi):
       self.fan_off=0
 
     if "high_temp" in self.args:
-      self.high_temp=self.args["high_temp"]
+      self.high_temp_slider=self.args["high_temp"]
     else:
-      self.high_temp=74
+      self.log("high_temp must be configured in appdaemon.yaml")
     if "low_temp" in self.args:
-      self.low_temp=self.args["low_temp"]
+      self.low_temp_slider=self.args["low_temp"]
     else:
-      self.low_temp=68
+      self.log("low_temp must be configured in appdaemon.yaml")
     
     if "high_humidity" in self.args:
       self.high_humidity=self.args["high_humidity"]
@@ -104,15 +104,26 @@ class light_control(appapi.my_appapi):
             overlap=True
     if overlap:
       self.log("Please fix configuration before continuing")
-      return 1
+      exit
 
     for ent in self.targets:
       for ent_trigger in self.targets[ent]["triggers"]:
         self.log("registering callback for {} on {} for target {}".format(ent_trigger,self.targets[ent]["callback"],ent))
-        self.listen_state(self.targets[ent]["callback"],ent_trigger,target=ent)
+        if self.targets[ent]["triggers"][ent_trigger]["type"]=="sun":
+          self.run_at_sunrise(self.process_sun,target=ent)
+          self.run_at_sunset(self.process_sun,target=ent)
+        else:
+          self.listen_state(self.targets[ent]["callback"],ent_trigger,target=ent)
       self.process_light_state(ent)      # process each light as we register a callback for it's triggers rather than wait for a trigger to fire first.
 
-
+  def process_sun(self,kwargs):
+    self.process_light_state(kwargs["target"])
+    if self.sun_up():
+      self.run_at_sunrise(self.process_sun,target=kwargs["target"])
+    else:
+      self.run_at_sunset(self.process_sun,target=kwargs["target"])
+  
+   
   ########
   #
   # state change handler.  All it does is call process_light_state all the work is done there.
@@ -177,7 +188,6 @@ class light_control(appapi.my_appapi):
     else:
       self.log("home override set so no automations performed")
 
-
   def my_turn_on(self,entity,**kwargs):
     self.log("entity={} kwargs={}".format(entity,kwargs))
     if not kwargs=={}:
@@ -223,9 +233,13 @@ class light_control(appapi.my_appapi):
       tmpstate=self.get_state(target)    # if thats the case, just return the state of the target so nothing changes.
     else:
       try:
+        self.log("newstate={} {}*****************************".format(newstate,self.targets[target]["triggers"][trigger]["type"]))
         newstate=int(float(newstate))
         if self.targets[target]["triggers"][trigger]["type"]=="temperature":     # is it a temperature.
-          self.log("normalizing temperature")
+          self.log("normalizing temperature {} - {}".format(self.high_temp_slider,self.low_temp_slider))
+          self.high_temp=int(float(self.get_state(self.high_temp_slider)))
+          self.low_temp=int(float(self.get_state(self.low_temp_slider)))
+          self.log("{}={}, {}={}".format(self.high_temp_slider,self.high_temp,self.low_temp_slider,self.low_temp))
           currenttemp = newstate           # convert floating point to integer.
           if currenttemp>=self.high_temp:                     # handle temp Hi / Low state setting to on/off.
             tmpstate="on"
@@ -260,6 +274,7 @@ class light_control(appapi.my_appapi):
           
         else:
           tmpstate=newstate
+    self.log("Normalized {} to {}".format(newstate,tmpstate))
     return tmpstate
 
   def check_override_active(self,target):
